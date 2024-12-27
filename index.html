@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glitched Video Maker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        video {
+            display: block;
+            margin: 20px auto;
+            max-width: 100%;
+        }
+        button {
+            display: block;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Glitched Video Preview</h1>
+    
+    <!-- Video preview -->
+    <video id="glitch-video" controls></video>
+    
+    <!-- Download button -->
+    <button id="download-button" style="display:none;">Download Glitched Video</button>
+
+    <input type="file" id="video-upload" accept="video/*" />
+    
+    <script src="https://cdn.jsdelivr.net/npm/ffmpeg.js@4.4.0/ffmpeg.min.js"></script>
+    <script>
+        const videoUpload = document.getElementById('video-upload');
+        const glitchVideo = document.getElementById('glitch-video');
+        const downloadButton = document.getElementById('download-button');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        // Handle video file upload
+        videoUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                glitchVideo.src = url;
+                glitchVideo.load();
+                glitchVideo.play();
+            }
+        });
+
+        glitchVideo.addEventListener('play', () => {
+            applyGlitchEffect();
+        });
+
+        // Apply glitch effect
+        function applyGlitchEffect() {
+            const video = glitchVideo;
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+
+            canvas.width = width;
+            canvas.height = height;
+
+            let frameCount = 0;
+
+            // Start recording the video with the glitch effect applied
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(canvas.captureStream(30), { mimeType: 'video/webm' });
+            mediaRecorder.ondataavailable = event => recordedChunks.push(event.data);
+            mediaRecorder.onstop = () => {
+                const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                glitchVideo.src = URL.createObjectURL(videoBlob);
+                downloadButton.style.display = 'block'; // Show download button
+            };
+
+            mediaRecorder.start();
+
+            // Apply glitch effect to video frames
+            const glitchInterval = setInterval(() => {
+                ctx.drawImage(video, 0, 0, width, height);
+                const imageData = ctx.getImageData(0, 0, width, height);
+                const data = imageData.data;
+
+                // Create glitch by manipulating pixel data
+                for (let i = 0; i < data.length; i += 4) {
+                    // Apply random glitch effect on every 5th frame
+                    if (frameCount % 5 === 0) {
+                        const randomIntensity = Math.floor(Math.random() * (190 - 99 + 1)) + 99; // Random value between 99 and 190
+                        data[i] = Math.min(data[i] + randomIntensity, 255); // Red
+                        data[i + 1] = Math.min(data[i + 1] + randomIntensity, 255); // Green
+                        data[i + 2] = Math.min(data[i + 2] + randomIntensity, 255); // Blue
+                    }
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+
+                // Reuse frames: render current frame with stretching effect
+                if (frameCount % 5 === 0) {
+                    ctx.drawImage(video, 0, height * 0.5, width, height * 0.5, 0, height * 0.5, width, height * 0.5);
+                }
+
+                frameCount++;
+            }, 1000 / 30); // 30 FPS
+        }
+
+        // Convert and download glitched video as WebM
+        downloadButton.addEventListener('click', () => {
+            const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(videoBlob);
+            link.download = 'glitched-video.webm';
+            link.click();
+        });
+    </script>
+
+</body>
+</html>
